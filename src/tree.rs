@@ -1,12 +1,19 @@
 use std::collections::BTreeMap;
+use std::collections::VecDeque;
 
-#[derive(Ord, Eq, PartialEq, PartialOrd, Copy, Clone)]
+#[derive(Ord, Eq, PartialEq, PartialOrd, Copy, Clone, Debug)]
 pub struct NodeIndex(usize);
 
+#[derive(Debug)]
 pub struct Tree<T> {
     nodes: BTreeMap<NodeIndex, Node<T>>,
     root: NodeIndex,
     next_idx: NodeIndex,
+}
+
+pub enum SearchResult<R> {
+    Continue,
+    Return(R),
 }
 
 impl<T> Tree<T> {
@@ -30,7 +37,7 @@ impl<T> Tree<T> {
         self.nodes.get(&index)
     }
 
-    pub fn add_child(&mut self, parent: NodeIndex, child: T) -> Option<NodeIndex> {
+    pub fn add(&mut self, parent: NodeIndex, child: T) -> Option<NodeIndex> {
         let idx = self.next_idx.clone();
         let child_node = if let Some(ref mut parent) = self.get_mut(parent) {
             let node = Node::new_child(idx, parent.index, child);
@@ -48,6 +55,10 @@ impl<T> Tree<T> {
         child_node
     }
 
+    pub fn root(&self) -> NodeIndex {
+        self.root
+    }
+
     pub fn data<I: Into<NodeIndex>>(&self, node: I) -> Option<&T> {
         self.get(node.into()).map(|n| n.data())
     }
@@ -59,8 +70,63 @@ impl<T> Tree<T> {
     pub fn children<I: Into<NodeIndex>>(&self, node: I) -> Option<&Vec<NodeIndex>> {
         self.get(node.into()).map(|n| n.children())
     }
+
+    // Algorithms
+
+    /// Perform a depth-first search of the tree nodes.
+    pub fn depth_first_search<'a, R, V>(&'a self, visit: &mut V) -> R
+    where
+        V: FnMut(&'a Tree<T>, &'a Node<T>, usize) -> SearchResult<R>,
+        R: Default,
+    {
+        let mut pending = Vec::new();
+        pending.push((self.root, 0));
+
+        while let Some((n, level)) = pending.pop() {
+            let node = self.get(n).unwrap();
+            if let SearchResult::Return(r) = visit(self, node, level) {
+                return r;
+            }
+            pending.extend(node.children().iter().map(|c| (*c, level + 1)));
+        }
+        // no-one returned
+        R::default()
+    }
+
+    pub fn breadth_first_search<'a, R, V>(&'a self, visit: &mut V) -> R
+    where
+        V: FnMut(&'a Tree<T>, &'a Node<T>, usize) -> SearchResult<R>,
+        R: Default,
+    {
+        let mut pending = VecDeque::new();
+        pending.push_back((self.root, 0));
+
+        while let Some((n, level)) = pending.pop_front() {
+            let node = self.get(n).unwrap();
+            if let SearchResult::Return(r) = visit(self, node, level) {
+                return r;
+            }
+            pending.extend(node.children().iter().map(|c| (*c, level + 1)));
+        }
+
+        R::default()
+    }
+
+    pub fn find<'a, P>(&'a self, predicate: P) -> Option<&'a Node<T>>
+    where
+        P: Fn(&Tree<T>, &Node<T>) -> bool,
+    {
+        self.depth_first_search::<Option<&'a Node<T>>, _>(&mut |tree, node, _| {
+            if predicate(tree, node) {
+                SearchResult::Return(Some(node))
+            } else {
+                SearchResult::Continue
+            }
+        })
+    }
 }
 
+#[derive(Debug)]
 pub struct Node<T> {
     data: T,
     index: NodeIndex,
