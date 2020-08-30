@@ -71,6 +71,45 @@ impl<T> Tree<T> {
         self.get(node.into()).map(|n| n.children())
     }
 
+    pub fn move_node<I: Into<NodeIndex>, J: Into<NodeIndex>>(
+        &mut self,
+        node: I,
+        parent: J,
+    ) -> Option<NodeIndex> {
+        let node = node.into();
+        let parent = parent.into();
+
+        if let Some(old_parent) = self.parent(node) {
+            self.remove_child(old_parent, node);
+        }
+
+        self.add_child(parent, node);
+        self.set_parent(node, parent)
+    }
+
+    fn remove_child(&mut self, parent: NodeIndex, child: NodeIndex) {
+        if let Some(parent) = self.get_mut(parent) {
+            parent.children.retain(|e| *e != child);
+        }
+    }
+
+    fn add_child(&mut self, parent: NodeIndex, child: NodeIndex) {
+        if let Some(parent) = self.get_mut(parent) {
+            parent.children.push(child);
+        }
+    }
+
+    fn set_parent(&mut self, child: NodeIndex, parent: NodeIndex) -> Option<NodeIndex> {
+        if let Some(node) = self.get_mut(child) {
+            let old_parent = node.parent;
+            node.parent = Some(parent);
+
+            old_parent
+        } else {
+            None
+        }
+    }
+
     // Algorithms
 
     /// Perform a depth-first search of the tree nodes.

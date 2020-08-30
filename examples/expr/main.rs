@@ -4,18 +4,20 @@ extern crate jacaranda;
 use jacaranda::tree::*;
 use std::fmt::Write;
 
+mod parser;
+
 // AST tree example
-enum AstNode {
-    ExprNode, // eg. parenthesised expression, or the root expression
-    OperationNode(Operator),
-    LiteralNode(i64),
+pub enum AstNode {
+    Expr, // eg. parenthesised expression, or the root expression
+    Operation(Operator),
+    Literal(i64),
 }
 
-enum Operator {
-    Plus,
-    Minus,
-    Times,
-    Divide,
+pub enum Operator {
+    Add,
+    Sub,
+    Mul,
+    Div,
 }
 
 fn evaluate(tree: &Tree<AstNode>) -> i64 {
@@ -25,19 +27,19 @@ fn evaluate(tree: &Tree<AstNode>) -> i64 {
 fn eval_node(tree: &Tree<AstNode>, node: NodeIndex) -> i64 {
     let node = tree.get(node).unwrap();
     match node.data() {
-        AstNode::LiteralNode(val) => *val,
-        AstNode::ExprNode => eval_node(tree, *node.children().first().unwrap()),
-        AstNode::OperationNode(op) => {
+        AstNode::Literal(val) => *val,
+        AstNode::Expr => eval_node(tree, *node.children().first().unwrap()),
+        AstNode::Operation(op) => {
             let left = node.children()[0];
             let right = node.children()[1];
             let left = eval_node(tree, left);
             let right = eval_node(tree, right);
 
             match op {
-                Operator::Plus => left + right,
-                Operator::Minus => left - right,
-                Operator::Times => left * right,
-                Operator::Divide => left / right,
+                Operator::Add => left + right,
+                Operator::Sub => left - right,
+                Operator::Mul => left * right,
+                Operator::Div => left / right,
             }
         }
     }
@@ -52,15 +54,15 @@ fn display(tree: &Tree<AstNode>) -> String {
 fn display_node(tree: &Tree<AstNode>, node: NodeIndex, buf: &mut String) {
     let node = tree.get(node).unwrap();
     match node.data() {
-        AstNode::LiteralNode(val) => {
+        AstNode::Literal(val) => {
             write!(buf, "{}", val).unwrap();
         }
-        AstNode::ExprNode => {
+        AstNode::Expr => {
             write!(buf, "(").unwrap();
             display_node(tree, *node.children().first().unwrap(), buf);
             write!(buf, ")").unwrap();
         }
-        AstNode::OperationNode(op) => {
+        AstNode::Operation(op) => {
             let left = node.children()[0];
             let right = node.children()[1];
             display_node(tree, left, buf);
@@ -68,10 +70,10 @@ fn display_node(tree: &Tree<AstNode>, node: NodeIndex, buf: &mut String) {
                 buf,
                 "{}",
                 match op {
-                    Operator::Plus => "+",
-                    Operator::Minus => "-",
-                    Operator::Times => "*",
-                    Operator::Divide => "/",
+                    Operator::Add => "+",
+                    Operator::Sub => "-",
+                    Operator::Mul => "*",
+                    Operator::Div => "/",
                 }
             )
             .unwrap();
@@ -80,24 +82,28 @@ fn display_node(tree: &Tree<AstNode>, node: NodeIndex, buf: &mut String) {
     }
 }
 
-fn parse_expr(_text: &str) -> Tree<AstNode> {
-    todo!("Implement basic parser")
-}
-
 fn build_sample() -> Option<Tree<AstNode>> {
-    let mut tree = Tree::new(AstNode::ExprNode);
-    let plus = tree.add(tree.root(), AstNode::OperationNode(Operator::Plus))?;
-    let _l = tree.add(plus, AstNode::LiteralNode(5))?;
-    let re = tree.add(plus, AstNode::ExprNode)?;
-    let rd = tree.add(re, AstNode::OperationNode(Operator::Divide))?;
-    let _rl = tree.add(rd, AstNode::LiteralNode(7))?;
-    let _rr = tree.add(rd, AstNode::LiteralNode(2))?;
+    let mut tree = Tree::new(AstNode::Expr);
+    let plus = tree.add(tree.root(), AstNode::Operation(Operator::Add))?;
+    let _l = tree.add(plus, AstNode::Literal(5))?;
+    let re = tree.add(plus, AstNode::Expr)?;
+    let rd = tree.add(re, AstNode::Operation(Operator::Div))?;
+    let _rl = tree.add(rd, AstNode::Literal(7))?;
+    let _rr = tree.add(rd, AstNode::Literal(2))?;
 
     Some(tree)
 }
 
-fn main() {
+fn main() -> Result<(), parser::ParseError> {
     let t = build_sample().unwrap();
 
     println!("{} = {}", display(&t), evaluate(&t));
+    // use parser::*;
+    // let mut state = ParseState {
+    //     input: "(1+2)".as_bytes(),
+    //     index: 0,
+    //     tree: Tree::new(AstNode::Expr),
+    // };
+
+    Ok(())
 }
